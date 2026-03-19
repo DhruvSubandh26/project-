@@ -1,72 +1,54 @@
-import pickle
-import numpy as np
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-# Load ML model
-model = pickle.load(open("model.pkl", "rb"))
+# Global data storage
+latest_data = {
+    "voltage": 0,
+    "current": 0,
+    "temperature": 0,
+    "soc": 0,
+    "prediction": "Waiting..."
+}
 
-# Store latest values
-latest_data = {}
-latest_prediction = None
-
-
-# Home route (UI)
 @app.route('/')
 def home():
-    return render_template("index.html", data=latest_data, prediction=latest_prediction)
+    return render_template("index.html")
 
+@app.route('/data', methods=['GET'])
+def get_data():
+    return jsonify(latest_data)
 
-# Existing test route (optional)
-@app.route('/test', methods=['POST'])
-def test():
-    global latest_data
-    latest_data = request.get_json()
-    return jsonify({"status": "received"})
-
-
-# ML Prediction API
 @app.route('/predict', methods=['POST'])
 def predict():
-    global latest_prediction, latest_data
+    global latest_data
 
-    try:
-        data = request.get_json()
+    data = request.get_json()
 
-        # Extract values
-        voltage = data['voltage']
-        current = data['current']
-        temperature = data['temperature']
+    voltage = data['voltage']
+    current = data['current']
+    temperature = data['temperature']
 
-        # Convert to model input
-        features = np.array([[voltage, current, temperature]])
+    # Dummy SOC calculation
+    soc = (voltage / 12.6) * 100  
 
-        # Predict
-        pred = model.predict(features)[0]
+    # Dummy logic for prediction (for testing UI)
+    if temperature > 45:
+        result = "Overheating 🔥"
+    elif voltage < 10:
+        result = "Low Voltage ⚠️"
+    else:
+        result = "Healthy ✅"
 
-        # Convert output to readable result
-        if pred == 0:
-            result = "Healthy Battery"
-        else:
-            result = "Fault Detected"
+    latest_data = {
+        "voltage": voltage,
+        "current": current,
+        "temperature": temperature,
+        "soc": round(soc, 2),
+        "prediction": result
+    }
 
-        # Store latest values
-        latest_prediction = result
-        latest_data = data
+    return jsonify(latest_data)
 
-        return jsonify({
-            "status": "success",
-            "prediction": result
-        })
-
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        })
-
-
-# Run locally
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
