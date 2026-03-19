@@ -1,39 +1,72 @@
-from flask import Flask, request, jsonify
+import pickle
+import numpy as np
+from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-# 🔹 Store latest data globally
-latest_data = {}
+# Load ML model
+model = pickle.load(open("model.pkl", "rb"))
 
-# 🔹 Home page (Website UI)
+# Store latest values
+latest_data = {}
+latest_prediction = None
+
+
+# Home route (UI)
 @app.route('/')
 def home():
-    return f"""
-    <h2>ESP32 Render Server Running ✅</h2>
-    <h3>Latest Sensor Data:</h3>
-    <p><b>Voltage:</b> {latest_data.get('voltage', 'No data')}</p>
-    <p><b>Current:</b> {latest_data.get('current', 'No data')}</p>
-    <p><b>Temperature:</b> {latest_data.get('temperature', 'No data')}</p>
-    """
+    return render_template("index.html", data=latest_data, prediction=latest_prediction)
 
-# 🔹 API endpoint (ESP32 sends data here)
+
+# Existing test route (optional)
 @app.route('/test', methods=['POST'])
 def test():
     global latest_data
+    latest_data = request.get_json()
+    return jsonify({"status": "received"})
 
-    data = request.get_json()
-    latest_data = data  # store data
 
-    print("📥 Data received:", data)
+# ML Prediction API
+@app.route('/predict', methods=['POST'])
+def predict():
+    global latest_prediction, latest_data
 
-    return jsonify({
-        "status": "success",
-        "message": "Data received successfully",
-        "received_data": data
-    })
+    try:
+        data = request.get_json()
 
-# 🔹 Run app
+        # Extract values
+        voltage = data['voltage']
+        current = data['current']
+        temperature = data['temperature']
+
+        # Convert to model input
+        features = np.array([[voltage, current, temperature]])
+
+        # Predict
+        pred = model.predict(features)[0]
+
+        # Convert output to readable result
+        if pred == 0:
+            result = "Healthy Battery"
+        else:
+            result = "Fault Detected"
+
+        # Store latest values
+        latest_prediction = result
+        latest_data = data
+
+        return jsonify({
+            "status": "success",
+            "prediction": result
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
+
+
+# Run locally
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
