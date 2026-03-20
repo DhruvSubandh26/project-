@@ -1,54 +1,39 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
+import os
 
 app = Flask(__name__)
 
-# Global data storage
-latest_data = {
-    "voltage": 0,
-    "current": 0,
-    "temperature": 0,
-    "soc": 0,
-    "prediction": "Waiting..."
-}
+latest_data = {}
 
 @app.route('/')
 def home():
-    return render_template("index.html")
+    if not latest_data:
+        return "<h2>No data received yet</h2>"
 
-@app.route('/data', methods=['GET'])
-def get_data():
-    return jsonify(latest_data)
+    return f"""
+    <h2>SMART EV BMS CLOUD DASHBOARD 🚀</h2>
 
-@app.route('/predict', methods=['POST'])
-def predict():
+    <p><b>Voltage:</b> {latest_data['voltage']} V</p>
+    <p><b>Current:</b> {latest_data['current']} A</p>
+    <p><b>Temperature:</b> {latest_data['temperature']} °C</p>
+    <p><b>Status:</b> {latest_data['status']}</p>
+    """
+
+@app.route('/test', methods=['POST'])
+def test():
     global latest_data
 
     data = request.get_json()
+    latest_data = data
 
-    voltage = data['voltage']
-    current = data['current']
-    temperature = data['temperature']
+    print("📥 Data received:")
+    print(data)
 
-    # Dummy SOC calculation
-    soc = (voltage / 12.6) * 100  
+    return jsonify({
+        "status": "success",
+        "data": data
+    })
 
-    # Dummy logic for prediction (for testing UI)
-    if temperature > 45:
-        result = "Overheating 🔥"
-    elif voltage < 10:
-        result = "Low Voltage ⚠️"
-    else:
-        result = "Healthy ✅"
-
-    latest_data = {
-        "voltage": voltage,
-        "current": current,
-        "temperature": temperature,
-        "soc": round(soc, 2),
-        "prediction": result
-    }
-
-    return jsonify(latest_data)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
